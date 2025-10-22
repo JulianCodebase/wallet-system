@@ -1,0 +1,14 @@
+HELP.md
+target/
+wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+.DS_Store
+.env
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
