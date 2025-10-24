@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wallet.mapper.WalletTransactionMapper">
+
+    <!-- 只需要把有问题的动态SQL方法移到这里 -->
+    <select id="selectByUserAndTime" resultType="com.wallet.entity.WalletTransaction">
+        SELECT * FROM wallet_transaction
+        WHERE user_id = #{userId}
+        <if test="currency != null and currency != ''">
+            AND currency = #{currency}
+        </if>
+        <if test="startTime != null">
+            AND created_at &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND created_at &lt;= #{endTime}
+        </if>
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>

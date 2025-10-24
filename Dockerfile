@@ -1,4 +1,4 @@
-FROM openjdk:17-jdk-slim
+FROM openjdk:17-jdk
 
 # 设置工作目录
 WORKDIR /app
