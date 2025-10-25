@@ -24,4 +24,9 @@ public interface BalanceChangeHistoryMapper {
     List<BalanceChangeHistory> selectByWalletAndTime(@Param("walletId") Long walletId,
                                                      @Param("startTime") Date startTime,
                                                      @Param("endTime") Date endTime);
+
+    @Select("SELECT * FROM balance_change_history WHERE wallet_id = #{walletId} " +
+            "AND created_at < #{beforeTime} ORDER BY created_at DESC LIMIT 1")
+    BalanceChangeHistory selectLastChangeBefore(@Param("walletId") Long walletId,
+                                                @Param("beforeTime") Date beforeTime);
 }

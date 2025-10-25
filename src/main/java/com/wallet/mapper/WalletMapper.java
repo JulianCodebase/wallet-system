@@ -4,6 +4,7 @@ import com.wallet.entity.Wallet;
 import org.apache.ibatis.annotations.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Mapper
 public interface WalletMapper {
@@ -11,6 +12,10 @@ public interface WalletMapper {
     // 根据用户和币种查询钱包
     @Select("SELECT * FROM wallet WHERE user_id = #{userId} AND currency = #{currency}")
     Wallet selectByUserAndCurrency(@Param("userId") Long userId, @Param("currency") String currency);
+
+    // 根据用户ID查询所有钱包
+    @Select("SELECT * FROM wallet WHERE user_id = #{userId} ORDER BY currency")
+    List<Wallet> selectByUserId(@Param("userId") Long userId);
 
     // 插入新钱包
     @Insert("INSERT INTO wallet(user_id, currency, balance, frozen_balance, version, status) " +

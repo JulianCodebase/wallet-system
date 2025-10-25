@@ -1,9 +1,12 @@
 package com.wallet.dto.response;
 
+import lombok.Builder;
 import lombok.Data;
+
 import java.math.BigDecimal;
 
 @Data
+@Builder
 public class TransactionResponse {
     private Boolean success;
     private String message;

@@ -1,14 +1,8 @@
 package com.wallet.controller;
 
-import com.wallet.dto.converter.WalletConverter;
-import com.wallet.dto.response.ApiResponse;
 import com.wallet.dto.request.RechargeRequest;
-import com.wallet.dto.response.TransactionRecordResponse;
-import com.wallet.dto.response.TransactionResponse;
 import com.wallet.dto.request.WithdrawRequest;
-import com.wallet.dto.response.WalletResponse;
-import com.wallet.entity.Wallet;
-import com.wallet.entity.WalletTransaction;
+import com.wallet.dto.response.*;
 import com.wallet.service.WalletService;
 import com.wallet.service.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +22,6 @@ public class WalletController {
     private final WalletService walletService;
 
     private final WalletTransactionService transactionService;
-
-    private final WalletConverter walletConverter;
 
     /**
      * 充值接口 - 返回详细交易结果
@@ -77,14 +69,25 @@ public class WalletController {
      * 查询余额
      */
     @GetMapping("/balance")
-    public ApiResponse<WalletResponse> getBalance(@RequestParam Long userId,
-                                                  @RequestParam String currency) {
+    public ApiResponse<CurrencyBalance> getBalance(@RequestParam Long userId,
+                                                   @RequestParam String currency) {
         try {
-            Wallet wallet = walletService.getWallet(userId, currency);
-            WalletResponse response = walletConverter.toWalletResponse(wallet);
-            return ApiResponse.success(response);
+            return ApiResponse.success(walletService.getCurrencyBalance(userId, currency));
         } catch (Exception e) {
             log.error("查询余额异常: {}", e.getMessage(), e);
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 查询用户所有币种余额汇总
+     */
+    @GetMapping("/balances")
+    public ApiResponse<WalletSummaryResponse> getAllBalances(@RequestParam Long userId) {
+        try {
+            return ApiResponse.success(walletService.getWalletSummary(userId));
+        } catch (Exception e) {
+            log.error("查询余额汇总异常: {}", e.getMessage(), e);
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -99,9 +102,8 @@ public class WalletController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") Date endTime) {
         try {
-            List<WalletTransaction> transactions = transactionService.getTransactionsByUser(
+            List<TransactionRecordResponse> responses = transactionService.getTransactionRecords(
                     userId, currency, startTime, endTime);
-            List<TransactionRecordResponse> responses = walletConverter.toTransactionRecordResponses(transactions);
             return ApiResponse.success(responses);
         } catch (Exception e) {
             log.error("查询交易记录异常: {}", e.getMessage(), e);

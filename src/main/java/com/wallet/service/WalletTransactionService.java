@@ -1,5 +1,7 @@
 package com.wallet.service;
 
+import com.wallet.dto.converter.WalletConverter;
+import com.wallet.dto.response.TransactionRecordResponse;
 import com.wallet.entity.WalletTransaction;
 import com.wallet.mapper.WalletTransactionMapper;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,8 @@ public class WalletTransactionService {
 
     private final WalletTransactionMapper walletTransactionMapper;
 
+    private final WalletConverter walletConverter;
+
     /**
      * 查询用户交易记录
      */
@@ -31,5 +35,14 @@ public class WalletTransactionService {
      */
     public WalletTransaction getTransactionByBusiness(String businessType, String businessId) {
         return walletTransactionMapper.selectByBusiness(businessType, businessId);
+    }
+
+    /**
+     * 查询用户交易记录
+     */
+    public List<TransactionRecordResponse> getTransactionRecords(Long userId, String currency,
+                                                                 Date startTime, Date endTime) {
+        List<WalletTransaction> transactions = getTransactionsByUser(userId, currency, startTime, endTime);
+        return walletConverter.toTransactionRecordResponses(transactions);
     }
 }

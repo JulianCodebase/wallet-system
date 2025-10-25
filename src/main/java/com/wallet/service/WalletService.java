@@ -1,6 +1,9 @@
 package com.wallet.service;
 
+import com.wallet.dto.converter.WalletConverter;
+import com.wallet.dto.response.CurrencyBalance;
 import com.wallet.dto.response.TransactionResponse;
+import com.wallet.dto.response.WalletSummaryResponse;
 import com.wallet.entity.BalanceChangeHistory;
 import com.wallet.entity.Wallet;
 import com.wallet.entity.WalletTransaction;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -30,14 +34,17 @@ public class WalletService {
 
     private final BalanceChangeHistoryMapper balanceChangeHistoryMapper;
 
+    private final WalletConverter walletConverter;
+
     /**
      * 充值操作
-     * @param userId 用户ID
-     * @param currency 币种
-     * @param amount 金额
+     *
+     * @param userId       用户ID
+     * @param currency     币种
+     * @param amount       金额
      * @param businessType 业务类型
-     * @param businessId 业务ID
-     * @param remark 备注
+     * @param businessId   业务ID
+     * @param remark       备注
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
@@ -47,7 +54,7 @@ public class WalletService {
                 userId, currency, amount, businessType, businessId);
 
         // 1. 幂等检查 - 防止重复入账
-        TransactionResponse idempotentResponse = checkIdempotentAndReturnResponse(userId, currency, amount,
+        TransactionResponse idempotentResponse = checkIdempotent(userId, currency, amount,
                 businessType, businessId, remark, false);
         if (idempotentResponse != null) {
             return idempotentResponse;
@@ -91,20 +98,19 @@ public class WalletService {
                     userId, currency, amount, balanceAfter);
 
             // 构建响应对象
-            TransactionResponse response = new TransactionResponse();
-            response.setSuccess(true);
-            response.setMessage("充值成功");
-            response.setTransactionNo(transactionNo);
-            response.setUserId(userId);
-            response.setCurrency(currency);
-            response.setAmount(amount);
-            response.setBalanceBefore(wallet.getBalance());
-            response.setBalanceAfter(balanceAfter);
-            response.setBusinessType(businessType);
-            response.setBusinessId(businessId);
-            response.setRemark(remark);
-            return response;
-
+            return TransactionResponse.builder()
+                    .success(true)
+                    .message("充值成功")
+                    .transactionNo(transactionNo)
+                    .userId(userId)
+                    .currency(currency)
+                    .amount(amount)
+                    .balanceBefore(wallet.getBalance())
+                    .balanceAfter(balanceAfter)
+                    .businessType(businessType)
+                    .businessId(businessId)
+                    .remark(remark)
+                    .build();
         } catch (Exception e) {
             log.error("充值失败: userId={}, currency={}, amount={}, error={}",
                     userId, currency, amount, e.getMessage(), e);
@@ -116,12 +122,13 @@ public class WalletService {
 
     /**
      * 提现操作（防双花核心）
-     * @param userId 用户ID
-     * @param currency 币种
-     * @param amount 金额
+     *
+     * @param userId       用户ID
+     * @param currency     币种
+     * @param amount       金额
      * @param businessType 业务类型
-     * @param businessId 业务ID
-     * @param remark 备注
+     * @param businessId   业务ID
+     * @param remark       备注
      * @return 是否成功
      */
     @Transactional(rollbackFor = Exception.class)
@@ -131,7 +138,7 @@ public class WalletService {
                 userId, currency, amount, businessType, businessId);
 
         // 1. 幂等检查
-        TransactionResponse idempotentResponse = checkIdempotentAndReturnResponse(userId, currency, amount,
+        TransactionResponse idempotentResponse = checkIdempotent(userId, currency, amount,
                 businessType, businessId, remark, true);
         if (idempotentResponse != null) {
             return idempotentResponse;
@@ -176,19 +183,19 @@ public class WalletService {
                     userId, currency, amount, balanceAfter);
 
             // 构建响应对象
-            TransactionResponse response = new TransactionResponse();
-            response.setSuccess(true);
-            response.setMessage("提现成功");
-            response.setTransactionNo(transactionNo);
-            response.setUserId(userId);
-            response.setCurrency(currency);
-            response.setAmount(amount.negate()); // 负数表示支出
-            response.setBalanceBefore(wallet.getBalance());
-            response.setBalanceAfter(balanceAfter);
-            response.setBusinessType(businessType);
-            response.setBusinessId(businessId);
-            response.setRemark(remark);
-            return response;
+            return TransactionResponse.builder()
+                    .success(true)
+                    .message("提现成功")
+                    .transactionNo(transactionNo)
+                    .userId(userId)
+                    .currency(currency)
+                    .amount(amount.negate())
+                    .balanceBefore(wallet.getBalance())
+                    .balanceAfter(balanceAfter)
+                    .businessType(businessType)
+                    .businessId(businessId)
+                    .remark(remark)
+                    .build();
 
         } catch (Exception e) {
             log.error("提现失败: userId={}, currency={}, amount={}, error={}",
@@ -208,51 +215,64 @@ public class WalletService {
 
     /**
      * 幂等检查并返回响应
-     * @param userId 用户ID
-     * @param currency 币种
-     * @param amount 金额
+     *
+     * @param userId       用户ID
+     * @param currency     币种
+     * @param amount       金额
      * @param businessType 业务类型
-     * @param businessId 业务ID
-     * @param remark 备注
-     * @param isWithdraw 是否为提现操作
+     * @param businessId   业务ID
+     * @param remark       备注
+     * @param isWithdraw   是否为提现操作
      * @return 如果存在重复请求则返回响应，否则返回null
      */
-    private TransactionResponse checkIdempotentAndReturnResponse(Long userId, String currency, BigDecimal amount,
-                                                                 String businessType, String businessId,
-                                                                 String remark, boolean isWithdraw) {
+    private TransactionResponse checkIdempotent(Long userId, String currency, BigDecimal amount,
+                                                String businessType, String businessId,
+                                                String remark, boolean isWithdraw) {
         WalletTransaction existingTransaction = transactionMapper.selectByBusiness(businessType, businessId);
         if (existingTransaction != null) {
             log.info("重复业务请求，直接返回之前结果: business={}/{}, status={}",
                     businessType, businessId, existingTransaction.getStatus());
 
-            TransactionResponse response = new TransactionResponse();
-            response.setSuccess(existingTransaction.getStatus().equals(TransactionStatus.SUCCESS.getCode()));
-            response.setMessage(response.getSuccess() ? "重复请求，返回之前成功结果" : "重复请求，返回之前失败结果");
-            response.setTransactionNo(existingTransaction.getTransactionNo());
-            response.setUserId(userId);
-            response.setCurrency(currency);
-            response.setAmount(isWithdraw ? amount.negate() : amount); // 提现为负数，充值为正数
-            response.setBalanceBefore(existingTransaction.getBalanceBefore());
-            response.setBalanceAfter(existingTransaction.getBalanceAfter());
-            response.setBusinessType(businessType);
-            response.setBusinessId(businessId);
-            response.setRemark(remark);
-            return response;
+            return TransactionResponse.builder()
+                    .success(existingTransaction.getStatus().equals(TransactionStatus.SUCCESS.getCode()))
+                    .message(existingTransaction.getStatus().equals(TransactionStatus.SUCCESS.getCode())
+                            ? "重复请求，返回之前成功结果" : "重复请求，返回之前失败结果")
+                    .transactionNo(existingTransaction.getTransactionNo())
+                    .userId(userId)
+                    .currency(currency)
+                    .amount(isWithdraw ? amount.negate() : amount)
+                    .balanceBefore(existingTransaction.getBalanceBefore())
+                    .balanceAfter(existingTransaction.getBalanceAfter())
+                    .businessType(businessType)
+                    .businessId(businessId)
+                    .remark(remark)
+                    .build();
         }
+
         return null; // 返回null表示没有重复请求，需要继续处理
     }
 
     /**
-     * 幂等检查 - 防止重复业务请求
+     * 查询单个币种余额 - 返回DTO
      */
-    private Boolean checkIdempotent(String businessType, String businessId) {
-        WalletTransaction existingTransaction = transactionMapper.selectByBusiness(businessType, businessId);
-        if (existingTransaction != null) {
-            log.info("重复业务请求，直接返回之前结果: business={}/{}, status={}",
-                    businessType, businessId, existingTransaction.getStatus());
-            return existingTransaction.getStatus().equals(TransactionStatus.SUCCESS.getCode());
-        }
-        return null; // 返回null表示没有重复请求，需要继续处理
+    public CurrencyBalance getCurrencyBalance(Long userId, String currency) {
+        Wallet wallet = getWallet(userId, currency);
+        return walletConverter.toCurrencyBalance(wallet);
+    }
+
+    /**
+     * 获取用户所有钱包
+     */
+    public List<Wallet> getWalletsByUserId(Long userId) {
+        return walletMapper.selectByUserId(userId);
+    }
+
+    /**
+     * 获取用户钱包汇总
+     */
+    public WalletSummaryResponse getWalletSummary(Long userId) {
+        List<Wallet> wallets = getWalletsByUserId(userId);
+        return walletConverter.toWalletSummaryResponse(userId, wallets);
     }
 
     /**
