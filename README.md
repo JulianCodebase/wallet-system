@@ -1,7 +1,5 @@
 # 钱包系统设计与实现报告
 
-项目地址：[github](https://github.com/JulianCodebase/wallet-system)
-
 ## **1. 系统架构设计**
 
 ### **1.1 整体架构**
