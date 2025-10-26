@@ -1,16 +1,18 @@
 # 钱包系统设计与实现报告
 
-## **1. 系统架构设计**
 
-### **1.1 整体架构**
+## 1. 系统架构设计
+
+### 1.1 整体架构
+
 钱包系统采用分层架构设计，包含：
 
 - **Controller层**：接收HTTP请求，参数校验，返回统一格式响应
 - **Service层**：核心业务逻辑处理，事务管理
 - **Mapper层**：数据持久化操作
-- **数据库曾**：数据存储，索引优化
+- **数据库层**：数据存储，索引优化
 
-### **1.2 核心特性**
+### 1.2 核心特性
 
 - 多币种钱包支持
 - 交易幂等性保障
@@ -18,11 +20,11 @@
 - 实时对账能力
 - 防双花机制
 
-## **2. 数据库设计**
+## 2. 数据库设计
 
-### **2.1 核心表结构**
+### 2.1 核心表结构
 
-### **wallet（钱包表）**
+### wallet（钱包表）
 
 ```sql
 CREATE TABLE wallet (
@@ -37,7 +39,7 @@ CREATE TABLE wallet (
 )
 ```
 
-### **wallet_transaction（交易流水表）**
+### wallet_transaction（交易流水表）
 
 ```sql
 CREATE TABLE wallet_transaction (
@@ -58,7 +60,7 @@ CREATE TABLE wallet_transaction (
 )
 ```
 
-### **balance_change_history（余额变更历史表）**
+### balance_change_history（余额变更历史表）
 
 ```sql
 CREATE TABLE balance_change_history (
@@ -73,16 +75,16 @@ CREATE TABLE balance_change_history (
 )
 ```
 
-### **2.2 设计亮点**
+### 2.2 设计亮点
 
 - **唯一索引**：防止用户重复币种钱包、重复交易
 - **乐观锁**：通过version字段防止并发更新
 - **余额追踪**：完整记录每次余额变更轨迹
 - **业务幂等**：通过business_type+business_id保证幂等性
 
-## **3. 核心业务逻辑实现**
+## 3. 核心业务逻辑实现
 
-### **3.1 充值流程**
+### 3.1 充值流程
 
 ```java
 public TransactionResponse recharge(Long userId, String currency, BigDecimal amount,  businessType, String businessId, String remark) {
@@ -91,11 +93,11 @@ public TransactionResponse recharge(Long userId, String currency, BigDecimal amo
 	// 3. 创建交易记录（处理中状态）
 	// 4. 更新余额（原子操作）
 	// 5. 更新交易状态为成功
-		// 6. 记录余额变更历史
+    // 6. 记录余额变更历史
 }
 ```
 
-### **3.2 提现流程（防双花核心）**
+### 3.2 提现流程（防双花核心）
 
 ```java
 public TransactionResponse withdraw(Long userId, String currency, BigDecimal amount, String businessType, String businessId, String remark) {
@@ -108,7 +110,7 @@ public TransactionResponse withdraw(Long userId, String currency, BigDecimal amo
 }
 ```
 
-### **3.3 对账机制**
+### 3.3 对账机制
 
 ```java
 public ReconciliationResult reconcile(Long userId, String currency, Date startTime, Date endTime) {
@@ -120,60 +122,83 @@ public ReconciliationResult reconcile(Long userId, String currency, Date startTi
 }
 ```
 
-## **4. 安全保障机制**
+## 4. 安全保障机制
 
-### **4.1 防双花设计**
+### 4.1 防双花设计
 
 - **乐观锁机制**：`update wallet set balance = balance - ?, version = version + 1 where id = ? and version = ?`
 - **余额前置检查**：在事务内再次验证余额充足性
 - **事务隔离**：保证余额查询和更新的原子性
 
-### **4.2 防重复入账**
+### 4.2 防重复入账
 
 - **业务唯一键**：`uk_business (business_type, business_id)` 唯一索引
 - **幂等检查**：在业务开始时检查是否已处理过相同业务请求
 - **事务回滚**：异常时自动回滚，保证数据一致性
 
-### **4.3 数据一致性保障**
+### 4.3 数据一致性保障
 
 - **事务管理**：`@Transactional(rollbackFor = Exception.class)`
 - **余额追踪**：每次变更都记录完整的历史轨迹
 - **状态机管理**：交易状态从处理中→成功/失败，避免中间状态
 
-## **5. 性能分析与优化**
+## 5. API接口设计
 
-### **5.1 吞吐量分析**
+### 5.1 核心接口
 
-**预期性能指标**：
+| 方法 | 端点                            | 功能             |
+| :--- | :------------------------------ | :--------------- |
+| POST | `/api/wallet/recharge`          | 充值             |
+| POST | `/api/wallet/withdraw`          | 提现             |
+| GET  | `/api/wallet/balance`           | 查询单币种余额   |
+| GET  | `/api/wallet/balances`          | 查询所有币种余额 |
+| GET  | `/api/wallet/transactions`      | 查询交易记录     |
+| GET  | `/api/reconciliation/reconcile` | 对账查询         |
 
-- 单节点TPS：500-1000笔/秒（写操作）
-- QPS：2000-5000次/秒（读操作）
-- 响应时间：<100ms（95%请求）
+### 5.2 响应格式
 
-### **5.2 潜在瓶颈点**
+```json
+{
+  "success": true,
+  "message": "成功",
+  "data": { ... }
+}
+```
 
-### **数据库层面**
+## 6. 性能分析与优化
+
+### 6.1 吞吐量分析
+
+预期性能指标：
+
+- **单节点TPS**：500-1000笔/秒（写操作）
+- **QPS**：2000-5000次/秒（读操作）
+- **响应时间**：<100ms（95%请求）
+
+### 6.2 潜在瓶颈点
+
+### 数据库层面
 
 1. **钱包表热点更新**：高频用户的钱包记录更新冲突
 2. **交易表写入压力**：所有交易都要记录，写入量巨大
 3. **余额变更历史表**：数据增长快，查询性能下降
 
-### **应用层面**
+### 应用层面
 
 1. **数据库连接池**：高并发下连接数不足
 2. **事务持有时间**：长事务导致锁竞争
 3. **内存使用**：大查询导致内存溢出
 
-### **5.3 优化方案**
+### 6.3 优化方案
 
-### **5.3.1 数据库优化**
+### 6.3.1 数据库优化
 
 ```sql
 -- 分表策略-- 按用户ID分表：wallet_${user_id % 64}-- 按时间分表：transaction_202401, transaction_202402-- 索引优化ALTER TABLE wallet_transaction ADD INDEX idx_user_currency_time (user_id, currency, created_at);
 ALTER TABLE balance_change_history ADD INDEX idx_wallet_time (wallet_id, created_at);
 ```
 
-### **5.3.2 缓存策略**
+### 6.3.2 缓存策略
 
 ```java
 // 1. 钱包余额缓存@Cacheable(value = "walletBalance", key = "#userId + '_' + #currency")
@@ -187,7 +212,7 @@ public TransactionResponse getTransactionByBusiness(String businessType, String 
 }
 ```
 
-### **5.3.3 异步处理**
+### 6.3.3 异步处理
 
 ```java
 // 异步记录余额变更历史@Async
@@ -196,7 +221,7 @@ public void asyncRecordBalanceChange(WalletTransaction transaction, Wallet walle
 }
 ```
 
-### **5.3.4 批量操作**
+### 6.3.4 批量操作
 
 ```java
 // 批量插入余额变更历史
@@ -205,24 +230,9 @@ public void batchInsertBalanceHistory(List<BalanceChangeHistory> histories) {
 }
 ```
 
-## **6. 扩展性设计**
+## 7. 监控与运维
 
-### **6.1 水平扩展**
-
-- **应用层无状态**：支持多实例部署
-- **数据库分库分表**：按用户ID进行数据分片
-- **读写分离**：交易写主库，查询读从库
-
-### **6.2 功能扩展**
-
-- **多级钱包**：支持主钱包、子钱包体系
-- **资金冻结**：预冻结机制支持业务预留
-- **手续费计算**：灵活的手续费规则引擎
-- **风控集成**：实时风控检查拦截可疑交易
-
-## **7. 监控与运维**
-
-### **7.1 关键监控指标**
+### 7.1 关键监控指标
 
 - 交易成功率、失败率
 - 系统响应时间
@@ -230,13 +240,13 @@ public void batchInsertBalanceHistory(List<BalanceChangeHistory> histories) {
 - 慢查询统计
 - 余额不一致告警
 
-### **7.2 对账保障**
+### 7.2 对账保障
 
 - **每日定时对账**：自动检测余额不一致
 - **实时对账接口**：支持业务方主动对账
 - **差异自动修复**：小金额差异自动调平
 
-## **8. 总结**
+## 8. 总结
 
 本钱包系统设计具备以下特点：
 
